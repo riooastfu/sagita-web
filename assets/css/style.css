@@ -1,0 +1,8 @@
+.full {
+	height: 100vh;
+	background-image: url('../../assets/img/background/login.png');
+}
+
+.container {
+	margin-top: 70px;
+}

@@ -1,0 +1,101 @@
+UMUR,BERAT,JK,TINGGI,STATUS
+12,6.0,P,61,Normal
+37,11.0,L,65,Obesitas
+37,11.0,P,65,Obesitas
+14,7.6,P,66,Normal
+31,8.2,P,66,Normal
+24,7.7,L,67,Normal
+13,8.0,P,69,Normal
+14,11.0,L,70,Obesitas
+27,6.5,L,70,Gizi Kurang
+15,8.2,L,70,Normal
+12,7.0,P,74,Gizi Kurang
+26,7.0,P,74,Gizi Kurang
+15,8.0,L,74,Normal
+12,9.0,P,74,Normal
+12,12.0,P,74,Normal
+12,12.0,P,74,Obesitas
+13,13.0,P,74,Obesitas
+12,6.7,P,74,Gizi Kurang
+12,7.5,P,74,Normal
+25,8.1,P,74,Normal
+16,8.8,P,74,Normal
+12,6.0,L,75,Gizi Buruk
+12,6.0,P,75,Gizi Buruk
+12,6.0,P,75,Gizi Buruk
+12,7.0,P,75,Gizi Kurang
+14,7.0,P,75,Gizi Kurang
+12,8.0,L,75,Normal
+12,8.0,L,75,Normal
+23,8.0,L,75,Normal
+12,8.0,P,75,Normal
+22,8.0,P,75,Normal
+15,10.0,L,75,Normal
+17,10.0,L,75,Normal
+28,10.0,P,75,Normal
+32,11.0,L,75,Beresiko Gizi Lebih 
+18,14.0,P,75,Obesitas
+17,15.0,P,75,Obesitas
+18,15.0,P,75,Obesitas
+13,6.5,L,75,Gizi Buruk
+12,6.5,P,75,Gizi Buruk
+12,7.5,P,75,Gizi Kurang
+17,8.5,P,75,Normal
+12,7.0,L,76,Gizi Kurang
+17,7.0,P,76,Gizi Kurang
+12,8.0,P,76,Normal
+12,9.0,L,76,Normal
+17,9.0,P,76,Normal
+22,10.0,P,76,Normal
+12,11.0,L,76,Normal
+16,12.0,L,76,Gizi Lebih
+17,14.0,P,76,Obesitas
+12,14.4,P,76,Obesitas
+12,7.5,L,76,Gizi Kurang
+15,7.5,L,76,Gizi Kurang
+24,7.5,P,76,Gizi Kurang
+14,8.0,L,77,Gizi Kurang
+12,9.0,L,77,Normal
+19,9.0,P,77,Normal
+13,13.0,L,77,Obesitas
+12,6.5,L,77,Gizi Buruk
+18,8.3,L,77,Normal
+23,8.5,P,77,Normal
+32,9.5,P,77,Normal
+12,12.0,L,78,Beresiko Gizi Lebih 
+22,8.5,P,78,Normal
+28,10.0,P,81,Normal
+34,13.0,L,85,Normal
+24,13.0,P,85,Normal
+32,15.0,P,85,Obesitas
+24,6.0,P,86,Gizi Buruk
+24,10.0,P,86,Normal
+24,14.0,L,86,Gizi Lebih
+12,6.0,L,87,Gizi Buruk
+12,7.0,L,87,Gizi Buruk
+40,16.0,P,87,Obesitas
+39,12.5,P,87,Normal
+24,13.5,L,87,Normal
+25,9.5,P,87,Gizi Kurang
+18,7.0,L,88,Gizi Buruk
+26,12.0,L,88,Normal
+24,12.0,P,88,Normal
+28,13.0,L,88,Normal
+14,14.0,L,88,Normal
+32,14.0,L,88,Normal
+24,10.5,L,88,Normal
+24,11.6,P,88,Normal
+24,14.0,L,94,Normal
+48,10.0,P,95,Gizi Buruk
+41,13.1,L,95,Normal
+41,6.8,P,95,Gizi Buruk
+36,15.0,P,96,Normal
+37,17.0,P,96,Gizi Lebih
+37,5.6,P,96,Gizi Buruk
+53,11.1,L,97,Gizi Kurang
+49,16.5,P,97,Beresiko Gizi Lebih 
+54,18.0,L,98,Gizi Lebih
+56,15.2,P,98,Normal
+51,12.5,P,102,Gizi Kurang
+53,7.0,P,103,Gizi Buruk
+60,16.5,P,107,Normal

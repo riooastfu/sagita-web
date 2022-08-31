@@ -1,0 +1,935 @@
+<?php
+defined('BASEPATH') or exit('No direct script access allowed');
+use GuzzleHttp\Client;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+
+
+class Admin extends CI_Controller
+{
+    public function __construct()
+    {
+        parent::__construct();
+
+        is_logged_in();
+        // $this->load->library('Excel'); //load librari excel
+    }
+
+    function display_rules()
+    {
+
+        $data['title'] = 'Tree & Rules';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+
+        $root   = $this->db->order_by("feature_idx","DESC")->where(["parents"=>"root"])->get("rules")->result();
+
+        $datas = array();
+        
+        foreach ($root as $key => $val) {
+
+            $obj = "obj[".$val->current_level."]";
+            $dt["id"]     = $val->leaf_id;
+            $dt["idx"]    = $val->feature_idx;
+            $dt["level"]  = $val->current_level;
+            $dt["logika"] = str_replace($obj,$val->feature_name,$val->rule);
+            $dt["fitur"]  = $val->feature_name;
+            $dt["metric"] = $val->metric;
+
+            array_push($datas,(object) $dt);
+
+        }
+
+        $data["rules"] = $datas;
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/rules', $data);
+        $this->load->view('templates/footer');
+
+    }
+
+    function rules()
+    {
+        $myfile = fopen(APPPATH."training/outputs/rules/rules.json", "r") or die("Unable to open file!");
+        $rules = fread($myfile,filesize(APPPATH."training/outputs/rules/rules.json"));
+
+        if($this->db->insert_batch("rules",json_decode($rules)))
+        {
+            echo "input berhasil";
+        }
+
+        echo $rules;
+
+        // $data = json_decode($rules);
+
+        // $level = array();
+        
+        // foreach ($data as $key => $val) {
+        //     array_push($level,$val->current_level);
+        // }
+
+        // $level  = array_unique($level);
+        // $level  = array_values($level);
+
+        // $pilih = array();
+
+        // foreach ($level as $lv) {
+        //     foreach ($data as $key => $val) {
+        //         if($val->current_level === $lv)
+        //         {
+        //             array_push($pilih,$val);
+        //         }
+        //     }
+        // }
+
+        // echo json_encode($pilih);
+    }
+
+    function normalisasi_data($umur=null,$berat=null,$jk=null,$tinggi=null,$status=null)
+    {
+        if($umur >= "12" and $umur <= "24" ){
+            $umur = "12-24";
+        }
+        elseif($umur >= "25" and $umur <= "36" )
+        {
+            $umur = "25-36";
+        }
+        elseif($umur >= "37" and $umur <= "48" )
+        {
+            $umur = "37-48";
+        }
+        elseif($umur >= "49" and $umur <= "60" )
+        {
+            $umur = "49-60";
+        }
+
+        if( $berat <= "12.2" )
+        {
+            $berat = "5.9-12.2";
+        }
+        elseif($berat >= "12.3" and $berat <= "14.3" )
+        {
+            $berat = "12.3-14.3";
+        }
+        elseif($berat >= "14.4" and $berat <= "16.3" )
+        {
+            $berat = "14.4-16.3";
+        }
+        elseif($berat >= "16.4")
+        {
+            $berat = "16.4-27.9";
+        }
+
+        if( $tinggi <= "87.8" ){
+            $tinggi = "59.6-87.8";
+        }
+        elseif($tinggi >= "87.9" and $tinggi <= "96.1" )
+        {
+            $tinggi = "87.9-96.1";
+        }
+        elseif($tinggi >= "96.2" and $tinggi <= "103.3" )
+        {
+            $tinggi = "96.2-103.3";
+        }
+        elseif($tinggi >= "103.4" )
+        {
+            $tinggi = "103.4-123.9";
+        }
+
+        $data = array(
+            "umur_normal"  =>$umur,
+            "berat_normal" =>$berat,
+            "jk_normal"    =>$jk,
+            "tinggi_normal"=>$tinggi,
+            "status_normal"=>$status
+        );
+
+        return $data;
+
+    }
+
+    public function upload_data_training()
+    {
+            $config['upload_path']          = './uploads/';
+            $config['allowed_types']        = 'xls|xlsx|csv|ods|ots';
+            $config['max_size']             = 10000;
+
+            $this->load->library('upload', $config);
+
+            if(!$this->upload->do_upload('myfile'))
+            {
+                $error = array('error' => $this->upload->display_errors());
+                echo json_encode($error);
+            }
+            else
+            {
+                $reader = new \PhpOffice\PhpSpreadsheet\Reader\Xlsx();
+
+                $data           = array('upload_data' => $this->upload->data());
+                $path_xlsx      = $data["upload_data"]["full_path"];
+                $spreadsheet    = $reader->load($path_xlsx);
+                $d              = $spreadsheet->getSheet(0)->toArray();
+                
+                unset($d[0]);
+                
+                $datas = array();
+                // $i = 0;
+
+                foreach ($d as $t) {
+            
+                    $data = $this->normalisasi_data($t[0],$t[1],$t[2],$t[3],$t[4]);
+                    array_push($datas,$data);
+                }
+
+                if($this->db->insert_batch("data_training_normal",$datas))
+                {
+
+                    $dataTr = $this->db->get('data_training_normal')->result();
+                    $dt  = "Umur,Berat Badan,Jenis Kelamin,Tinggi Badan,Status Gizi"."\n";
+
+                    foreach ($dataTr as $key => $val) {
+                        $dt  .= $val->umur_normal.",".$val->berat_normal.",".$val->jk_normal.",".$val->tinggi_normal.",".$val->status_normal."\n";
+                    }
+
+                    $myfile = fopen(APPPATH."training/training.txt", "w") or die("Unable to open file!");
+                    fwrite($myfile, $dt);
+                    fclose($myfile);
+
+                    $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Upload Data Training Berhasil</div>');
+                    redirect('admin/training');   
+                }
+            }
+
+        $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Upload Data Training Gagal</div>');
+        redirect('admin/training');   
+    }
+
+    public function index()
+    {
+        $data['title'] = 'Dashboard';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/index', $data);
+        $this->load->view('templates/footer');
+    }
+
+    public function aboutUs()
+    {
+        $data['title'] = 'Tentang Kami';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/aboutus', $data);
+        $this->load->view('templates/footer');
+    }
+
+    #LIST DATA PASIEN - IBU
+    public function listPasien(){
+        $data['title'] = 'Daftar Ibu yang sudah registrasi';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('GET', '/ibu/list');
+            $body = $response->getBody();
+            $data['produk'] = json_decode($body)->data;
+        }catch (Exception $e){
+            $data['produk'] = null;
+        }
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/listibu', $data);
+        $this->load->view('templates/footer');
+    }
+
+    #UNTUK DATA ANAK - VERSION_1
+    public function submit(){
+        $nama_anak = $this->input->post('nama_anak');
+        $jenis_kelamin = $this->input->post('jeniskelamin');
+        $nama_ibu = $this->input->post('nama_ibu');
+        $tanggal_lahir = $this->input->post('tanggal_lahir');
+
+        $data = array(
+            'nama_anak' => $nama_anak, 'jenis_kelamin' => $jenis_kelamin, 'nama_ibu' => $nama_ibu, 'tgl_lahir' => $tanggal_lahir
+        );
+
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('POST', '/pasien/add',['json' => $data]);
+            $body = $response->getBody();
+
+            $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Pasien telah ditambahkan</div>');
+            redirect('admin/listpasien');
+        }catch (Exception $e){
+            $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Pasien gagal ditambahkan</div>');
+        }
+    }
+
+    #UNTUK DAFTAR DATA ANAK BASED ON IBU
+    public function anak($id_produk){
+        $data['title'] = 'Daftar Anak';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $data['id'] = $id_produk;
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('GET', '/ibu/listanak',['query'=>['doc_id' => $id_produk]]);
+            $body = $response->getBody();
+            $data['pasien'] = json_decode($body)->data;
+        }catch (Exception $e){
+            $data['pasien'] = null;
+        }
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/list_anak', $data);
+        $this->load->view('templates/footer');
+    }
+
+    #ANAK HAPUS
+    public function anakhapus($id_ibu, $id_anak){
+        $data['title'] = 'Daftar Anak';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('POST', '/pasien/delete',['json'=>['doc_id' => $id_anak]]);
+            $body = $response->getBody();
+            $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Data anak telah berhasil dihapus</div>');
+            redirect('admin/anak/'.$id_ibu);
+        }catch (Exception $e){
+            $data['pasien'] = null;
+            $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Data anak gagal dihapus '.$e.' </div>');
+            redirect('admin/anak/'.$id_ibu);
+        }
+    }
+
+    #UNTUK ADD DATA ANAK
+    public function ibu($id_produk)
+    {
+        $data['title'] = 'Tambah Data Anak';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $data['id'] = $id_produk;
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('GET', '/ibu/detail',['query'=>['doc_id' => $id_produk]]);
+            $body = $response->getBody();
+            $data['pasien'] = json_decode($body)->data;
+        }catch (Exception $e){
+            $data['pasien'] = null;
+        }
+
+        #GET HITUNG FROM SERVER
+        if(isset($_POST['anak_add'])){
+            $nama_anak = $this->input->post('nama_anak');
+            $jenis_kelamin = $this->input->post('jenis_kelamin');
+            $tanggal_lahir = $this->input->post('tanggal_lahir');
+
+            $data = array('id_ibu' => $id_produk, 'nama_anak' => $nama_anak, 'jenis_kelamin' => $jenis_kelamin,
+                'tgl_lahir' => $tanggal_lahir );
+            try {
+                $client = new Client([
+                    'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+                ]);
+
+                $response = $client->request('POST', '/pasien/add',['json'=>$data]);
+                $body = $response->getBody();
+                $data['pasien'] = json_decode($body)->data;
+
+                redirect('admin/listpasien');
+            }catch (Exception $e){
+                $data['pasien'] = null;
+            }
+        }
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/pasien_ibu', $data);
+        $this->load->view('templates/footer');
+    }
+
+    #UNTUK UPDATE ANAK
+    public function update()
+    {
+        $id_pasien = $this->input->post('id_pasien');
+        $nama_anak = $this->input->post('nama_anak');
+        $jenis_kelamin = $this->input->post('jenis_kelamin');
+        $nama_ibu = $this->input->post('nama_ibu');
+        $tanggal_lahir = $this->input->post('tanggal_lahir');
+
+        $data = array('doc_id' => $id_pasien, 'nama_anak' => $nama_anak, 'jenis_kelamin' => $jenis_kelamin,
+            'nama_ibu' => $nama_ibu, 'tgl_lahir' => $tanggal_lahir );
+
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('POST', '/pasien/update',['json' => $data]);
+            $body = $response->getBody();
+
+            $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Pasien telah diubah</div>');
+            redirect('admin/listpasien');
+        }catch (Exception $e){
+            $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Pasien gagal diubah</div>');
+        }
+    }
+
+    public function gizi()
+    {
+        $data['title'] = 'Pengecekan Gizi';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $data['pasien'] = $data['imt'] = $data['berat'] = $data['tinggi'] = $data['status'] = null;
+        #GET DATA FROM SERVER
+        if(isset($_POST['keyword']) || isset($_GET['id'])){
+            $nama_keyword =  isset($_POST['keyword']) ?  $_POST['keyword'] : $_GET['id'] ;
+            try {
+                $client = new Client([
+                    'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+                ]);
+
+                $response = $client->request('GET', '/gizi/caridata',['query'=>['id' => $nama_keyword]]);
+                $body = $response->getBody();
+                $data['pasien'] = json_decode($body)->data[0];
+                $data['imt'] = isset($_GET['imt']) ? $_GET['imt'] : 0;
+                $data['berat'] = isset($_GET['berat']) ? $_GET['berat'] : 0;
+                $data['tinggi'] = isset($_GET['tinggi']) ? $_GET['tinggi'] : 0;
+                $data['status'] = isset($_GET['status']) ? $_GET['status'] : null;
+            }catch (Exception $e){
+                $data['pasien'] = $data['imt'] = $data['berat'] = $data['tinggi'] = $data['status'] = null;
+            }
+        }
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/listgizi', $data);
+        $this->load->view('templates/footer');
+    }
+
+    public function updategizi()
+    {
+        $pasien_id = $_POST['pasien_id'];
+        $nama_anak = $_POST['nama_anak'];
+        $jk = $_POST['jk'];
+        $berat = $_POST['berat'];
+        $tinggi = $_POST['tinggi'];
+        $usia = $_POST['usia'];
+        $status_gizi = $_POST['status_gizi'];
+        $imt = $_POST['imt'];
+        $tanggal_pengecekan = $_POST['tanggal'];
+        #GET HITUNG FROM SERVER
+        if(isset($_POST['hitung'])){
+            $imt = round($berat / (($tinggi / 100)*($tinggi/100)),2);
+            $status_gizi = $this->checkstatus($usia, $imt, $berat);
+            redirect('admin/gizi?id='.$pasien_id.'&imt='.$imt.'&berat='.$berat.'&tinggi='.$tinggi.'&status='.$status_gizi);
+        }
+
+        #UNTUK SIMPAN DATA GIZI KE SERVER
+        if(isset($_POST['simpan'])){
+            $data = array('pasien_id' => $pasien_id, 'berat_badan' => $berat, 'tinggi_badan' => $tinggi, 'usia' => $usia,
+                'tanggal_check' => $tanggal_pengecekan, 'imt' => $imt, 'status_gizi' => $status_gizi);
+            try {
+                $client = new Client([
+                    'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+                ]);
+
+                $response = $client->request('POST', '/gizi/update',['json'=> $data ]);
+                $body = $response->getBody();
+
+                $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Gizi Pasien telah ditambahkan </div>');
+                redirect('mining/dashboard');
+            }catch (Exception $e){
+                $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Gizi Pasien gagal ditambahkan</div>');
+            }
+        }
+    }
+
+    public function validasi()
+    {
+        $data['title'] = 'Validasi Data';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('GET', '/ibu/listvalidasi');
+            $body = $response->getBody();
+            $data['pasien'] = json_decode($body)->data;
+        }catch (Exception $e){
+            $data['pasien'] = null;
+        }
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/listvalidasi', $data);
+        $this->load->view('templates/footer');
+    }
+
+    public function valid($id_pasien)
+    {
+        $data = array('doc_id' => $id_pasien);
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+
+            $response = $client->request('POST', '/pasien/validasi',['json'=> $data ]);
+            $body = $response->getBody();
+            $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Data Pasien telah divalidasi</div>');
+            redirect('admin/validasi');
+        }catch (Exception $e){
+            $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Data Pasien gagal divalidasi</div>');
+        }
+    }
+
+
+    public function training()
+	{
+		$data['title'] = 'Data Training';
+		$data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $data['data'] = $this->db->get('data_training_normal')->result();
+        $data['rules'] = null;
+
+        if(isset($_POST["btnTraining"]))
+        {
+            $myfile = fopen(APPPATH."training/outputs/rules/rules.json", "r") or die("Unable to open file!");
+            $rules = fread($myfile,filesize(APPPATH."training/outputs/rules/rules.json"));
+                
+            $this->db->empty_table("rules");
+            $this->db->insert_batch("rules",json_decode($rules));
+    
+            $data['rules'] = $rules;
+        }
+        // else{
+
+       
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/training_2', $data);
+        $this->load->view('templates/footer');
+
+        // }
+        
+		
+		
+	}
+
+    function Algoritmac45($umur_input,$berat_input,$tinggi_input,$jk_input){
+        
+        if($umur_input >= "12" and $umur_input <= "24" ){
+            $umur = "12-24";
+        }
+        elseif($umur_input >= "25" and $umur_input <= "36" )
+        {
+            $umur = "25-36";
+        }
+        elseif($umur_input >= "37" and $umur_input <= "48" )
+        {
+            $umur = "37-48";
+        }
+        elseif($umur_input >= "49" and $umur_input <= "60" )
+        {
+            $umur = "49-60";
+        }
+
+
+        
+        if($berat_input <= "12.2" ){
+            $berat = "5.9-12.2";
+        }
+        elseif($berat_input >= "12.3" and $berat_input <= "14.3" )
+        {
+            $berat = "12.3-14.3";
+        }
+        elseif($berat_input >= "14.4" and $berat_input <= "16.3" )
+        {
+            $berat = "14.4-16.3";
+        }
+        elseif($berat_input >= "16.4")
+        {
+            $berat = "16.4-27.9";
+        }
+
+        if($tinggi_input <= "87.8" ){
+            $tinggi = "59.6-87.8";
+        }
+        elseif($tinggi_input >= "87.9" and $tinggi_input <= "96.1" )
+        {
+            $tinggi = "87.9-96.1";
+        }
+        elseif($tinggi_input >= "96.2" and $tinggi_input <= "103.3" )
+        {
+            $tinggi = "96.2-103.3";
+        }
+        elseif($tinggi_input >= "103.4")
+        {
+            $tinggi = "103.4-123.9";
+        }
+
+        $tesdata = array(
+            "jk"    =>$jk_input,
+            "umur"  =>$umur,
+            "berat" =>$berat,
+            "tinggi"=>$tinggi
+        );
+
+
+        $ch = curl_init('http://127.0.0.1:5000/testing');
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $tesdata);
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        return $response;
+        
+    }
+
+    function hitung_testing(){
+        $getData="select * from data_testing where ifnull(status,'')=''";
+        $getData=$this->db->query( $getData)->result_array();
+       
+        foreach ($getData  as $value ){
+            var_dump($value);
+            $sts=$this->Algoritmac45($value['umur'],$value['berat'],$value['tinggi'],$value['jk']);
+            $this->db->query("update data_testing set status='".$sts."' where id=". (int) $value['id']);
+           
+        }
+        
+       
+    }
+
+    function upload_testing(){
+        $data=base64_decode($this->input->get("data"));
+        $array=json_decode($data);
+        $sql='';
+        $index=0;
+        foreach ($array as $value){
+            if ( $index !=0){
+                $sql="('".$value[0]."','".$value[1]."','".$value[2]."','".$value[3]."')," .$sql; 
+               
+
+            }
+            
+            $index++;
+           
+        }
+
+        $realSql=substr($sql,0,strlen($sql)-1);
+
+        $query="insert into data_testing (umur,berat,jk,tinggi) values ".$realSql;
+        $res=$this->db->query($query);
+        echo $res;
+       
+    }
+
+    function upload_training(){
+        $data=base64_decode($this->input->get("data"));
+        $array=json_decode($data);
+        $sql='';
+        $index=0;
+        foreach ($array as $value){
+            if ( $index !=0){
+                $sql="('".$value[0]."','".$value[1]."','".$value[2]."','".$value[3]."','".$value[4]."')," .$sql; 
+            }
+            
+            $index++;
+           
+        }
+
+        $realSql=substr($sql,0,strlen($sql)-1);
+
+        $query="insert into data_training_normal (umur_normal,berat_normal,jk_normal,tinggi_normal,status_normal) values ".$realSql;
+        $res=$this->db->query($query);
+        echo $res;
+       
+    }
+
+    function hapus_testing(){
+        $sql="delete from data_testing";
+        $res=$this->db->query($sql);
+        echo $res;
+    }
+
+    function hapus_training(){
+        $sql="delete from data_training_normal";
+        $res=$this->db->query($sql);
+        echo $res;
+    }
+
+    public function testing()
+	{
+		$data['title'] = 'Data Testing';
+		$data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        $data['data'] = $this->db->get("data_testing")->result();
+
+        if(isset($_POST) and !empty($_POST))
+        {
+
+            if($this->input->post("umur") >= "12" and $this->input->post("umur") <= "24" ){
+                $umur = "12-24";
+            }
+            elseif($this->input->post("umur") >= "25" and $this->input->post("umur") <= "36" )
+            {
+                $umur = "25-36";
+            }
+            elseif($this->input->post("umur") >= "37" and $this->input->post("umur") <= "48" )
+            {
+                $umur = "37-48";
+            }
+            elseif($this->input->post("umur") >= "49" and $this->input->post("umur") <= "60" )
+            {
+                $umur = "49-60";
+            }
+
+            if($this->input->post("berat") >= "0" and $this->input->post("berat") <= "9.9" ){
+                $berat = "0-9.9";
+            }
+            elseif($this->input->post("berat") >= "10" and $this->input->post("berat") <= "14" )
+            {
+                $berat = "10-14";
+            }
+            elseif($this->input->post("berat") >= "14.1" and $this->input->post("berat") <= "16.5" )
+            {
+                $berat = "14.1-16.5";
+            }
+            elseif($this->input->post("berat") >= "16.5")
+            {
+                $berat = ">16.5";
+            }
+
+            if($this->input->post("tinggi") >= "0" and $this->input->post("tinggi") <= "74.5" ){
+                $tinggi = "0-74.5";
+            }
+            elseif($this->input->post("tinggi") >= "74.6" and $this->input->post("tinggi") <= "94" )
+            {
+                $tinggi = "74.6-94";
+            }
+            elseif($this->input->post("tinggi") >= "94.1" and $this->input->post("tinggi") <= "103.5" )
+            {
+                $tinggi = "94.1-103.5";
+            }
+            elseif($this->input->post("tinggi") >= "103.5")
+            {
+                $tinggi = ">103.5";
+            }
+
+            $tesdata = array(
+                "jk"    =>$this->input->post("jk"),
+                "umur"  =>$umur,
+                "berat" =>$berat,
+                "tinggi"=>$tinggi
+            );
+
+
+            $ch = curl_init('http://127.0.0.1:5000/testing');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $tesdata);
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            
+
+            // echo $response;
+
+            
+            $data = array(
+                "jk"    =>$this->input->post("jk"),
+                "umur"  =>$this->input->post("umur"),
+                "berat" =>$this->input->post("berat"),
+                "tinggi"=>$this->input->post("tinggi"),
+                "status"=>$response
+            );
+
+
+            if($this->db->insert("data_testing",$data)){
+                $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Data Pasien telah ditambahkan </div>');
+                redirect('admin/testing');
+            }
+
+            $this->session->set_flashdata('message', '<div class="alert alert-danger" role="alert">Data Pasien Gagal ditambahkan </div>');
+            redirect('admin/testing');
+
+        }
+        else{
+            $this->load->view('templates/header', $data);
+            $this->load->view('templates/sidebar', $data);
+            $this->load->view('templates/topbar', $data);
+            $this->load->view('admin/testing_2', $data);
+            $this->load->view('templates/footer');
+        }
+		
+		
+	}
+
+    // public function testing()
+    // {
+    //     $data['title'] = 'Data Testing';
+    //     $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+    //     $data['training'] = $this->db->get('data_testing')->result_array();
+    //     $data['aktif'] = $this->db->query('select * from data_upload')->num_rows();
+    //     #UPLOAD DATA TESTING
+    //     if(isset($_POST['submit'])){
+    //         $fileName = $_FILES['file']['name'];
+
+    //         $config['upload_path'] = './uploads/'; //path upload
+    //         $config['file_name'] = $fileName;  // nama file
+    //         $config['allowed_types'] = 'xls|xlsx'; //tipe file yang diperbolehkan
+    //         $config['max_size'] = 10000; // maksimal size
+
+    //         $this->load->library('upload'); //meload librari upload
+    //         $this->upload->initialize($config);
+
+    //         if(! $this->upload->do_upload('file') ){
+    //             echo $this->upload->display_errors();exit();
+    //         }
+
+    //         $inputFileName = './uploads/'.$fileName;
+    //         try {
+    //             $inputFileType = PHPExcel_IOFactory::identify($inputFileName);
+    //             $objReader = PHPExcel_IOFactory::createReader($inputFileType);
+    //             $objPHPExcel = $objReader->load($inputFileName);
+    //         } catch(Exception $e) {
+    //             die('Error loading file "'.pathinfo($inputFileName,PATHINFO_BASENAME).'": '.$e->getMessage());
+    //         }
+
+    //         $sheet = $objPHPExcel->getSheet(0);
+    //         $highestRow = $sheet->getHighestRow();
+    //         $highestColumn = $sheet->getHighestColumn();
+
+    //         $this->db->truncate('data_testing');
+    //         for ($row = 2; $row <= $highestRow; $row++){//  Read a row of data into an array
+    //             $rowData = $sheet->rangeToArray('A' . $row . ':' . $highestColumn . $row,
+    //                 NULL,
+    //                 TRUE,
+    //                 FALSE);
+
+    //             // Sesuaikan key array dengan nama kolom di database
+    //             $data = array(
+    //                 "umur"=> $rowData[0][0],
+    //                 "berat"=> $rowData[0][1],
+    //                 "jk"=> $rowData[0][2],
+    //                 "tinggi"=> $rowData[0][3]
+    //             );
+
+    //             $insert = $this->db->insert("data_testing",$data);
+    //         }
+
+    //         $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Data Testing telah ditambahkan </div>');
+    //         redirect('admin/testing');
+    //     }
+
+    //     if(isset($_POST['testing'])) {
+    //         $c45 = new Algorithm\C45();
+    //         #UNTUK GET DATA LATEST UPLOAD FILE
+    //         $this->db->from('data_upload');
+    //         $this->db->order_by("tanggal_upload desc");
+    //         $query = $this->db->get();
+    //         $data_file = $query->result();
+    //         //$c45->loadFile('uploads/data_training.xlsx'); // load example file
+    //         if(count($data_file) > 0) {
+    //             $c45->loadFile('uploads/' . $data_file[0]->nama_file); // load example file
+    //             $c45->setTargetAttribute('STATUS'); // set target attribute
+
+    //             $initialize = $c45->initialize(); // initialize
+    //             $buildTree = $initialize->buildTree(); // build tree
+
+    //             $stringTree = $buildTree->toString(); // set to string
+    //             $data['formula'] = $stringTree;
+
+    //             $resulted = $this->db->get('data_testing')->result_array();
+    //             foreach ($resulted as $rst) {
+    //                 $data_push = array('UMUR' => $rst['umur'], 'BERAT' => $rst['berat'], 'JK' => $rst['jk'], 'TINGGI' => $rst['tinggi']);
+    //                 $hasil = $buildTree->classify($data_push);
+    //                 $this->db->update('data_testing', ['status' => $hasil], $data_push);
+    //             }
+    //             $this->session->set_flashdata('message', '<div class="alert alert-success" role="alert">Data Testing telah diproses</div>');
+    //             redirect('admin/testing');
+    //         }
+    //     }
+    //     $this->load->view('templates/header', $data);
+    //     $this->load->view('templates/sidebar', $data);
+    //     $this->load->view('templates/topbar', $data);
+    //     $this->load->view('admin/testing', $data);
+    //     $this->load->view('templates/footer');
+    // }
+
+    #HITUNG STATUS
+    private function checkstatus($usia, $imt,  $berat)
+    {
+        $hasil = null;
+        $kmt = $this->db->get_where('kmt', ['umur' => $usia])->row_array();
+        if($kmt){
+            $nilai_rujukan = ($imt > $kmt['median']) ? ($kmt['l1sd'] - $kmt['median']) : ($kmt['median'] - $kmt['k1sd']);
+            $z_score = round(($imt - $kmt['median'])/$nilai_rujukan);
+            if($z_score <= -3 ){
+                $hasil = 'Gizi Buruk';
+            }elseif($z_score > -3 && $z_score <= -2){
+                $hasil = 'Gizi Kurang';
+            }elseif($z_score > -2 && $z_score <= 1){
+                $hasil = 'Normal';
+            }elseif($z_score > 1 && $z_score <= 2){
+                $hasil = 'Beresiko gizi lebih';
+            }elseif($z_score > 2 && $z_score <= 3){
+                $hasil = 'Gizi lebih';
+            }elseif($z_score > 3){
+                $hasil = 'Obesitas';
+            }else $hasil = 'Undefined';
+        }else{
+            $hasil = 'Undefined';
+        }
+        return $hasil;
+    }
+
+    public function listpengecekan($id_pasien)
+    {
+        $data['title'] = 'Daftar Pengecekan Anak';
+        $data['user'] = $this->db->get_where('user', ['email' => $this->session->userdata('email')])->row_array();
+        try {
+            $client = new Client([
+                'base_uri' => 'http://localhost:3000', 'timeout' => 5,
+            ]);
+            $response = $client->request('GET', '/gizi/riwayat/'.$id_pasien);
+            $body = $response->getBody();
+            $data['riwayat'] = json_decode($body)->data;
+        }catch (Exception $e){
+            $data['riwayat'] = null;
+        }
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('admin/listdata', $data);
+        $this->load->view('templates/footer');
+    }
+
+    public function hapuscheck($id_pengecekan, $id_pasien)
+    {
+        $this->db->where(['id' => $id_pengecekan]);
+        $this->db->delete('pengecekan');
+
+        redirect('admin/listpengecekan/'.$id_pasien);
+    }
+}
